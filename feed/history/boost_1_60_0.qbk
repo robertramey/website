@@ -75,7 +75,7 @@
     * Added [@/libs/filesystem/doc/reference.html#path-size `size()`] function to class `path`. Resolves [@https://svn.boost.org/trac/boost/ticket/6874 #6874], Path should have a `size()` member function.
   * ['Tickets:]
     * Fix [@https://svn.boost.org/trac/boost/ticket/11733 #11733], Missing unistd.h include in boost/libs/filesystem/src/unique_path.cpp, by apply a patch from Idar Tollefsen.
-    * Fix [@https://svn.boost.org/trac/boost/ticket/5706 #5706], unique_path Fails on Windows for Temporary User Profiles, by applying [@https://github.com/boostorg/filesystem/pull/15 pull request #15] from Sebastian Redl to fix a race condition in `unique_path`.
+    * Fix [@https://svn.boost.org/trac/boost/ticket/7506 #7506], unique_path Fails on Windows for Temporary User Profiles, by applying [@https://github.com/boostorg/filesystem/pull/15 pull request #15] from Sebastian Redl to fix a race condition in `unique_path`.
     * Fix [@https://svn.boost.org/trac/boost/ticket/10591 #10591], boost::filesystem does not build on iOS 8, by applying a patch submitted by Daniel Seither.
     * Fix [@https://svn.boost.org/trac/boost/ticket/9454 #9454], Boost Filesystem [library build] not compiling when BOOST_FILESYSTEM_NO_DEPRECATED is defined, by applying a patch submitted by Makesim.
     * Fix [@https://svn.boost.org/trac/boost/ticket/11447 #11447], `__OpenBSD__` macro name misspelled, by applying a patch submitted by Jasper Lievisse Adriaanse.

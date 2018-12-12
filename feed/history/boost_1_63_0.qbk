@@ -1,0 +1,229 @@
+[article Version 1.63.0
+    [quickbook 1.6]
+    [source-mode c++]
+    [purpose
+        Updated Libraries:
+        Atomic, Container, Context, Fiber, Fusion, Geometry, Hash, Interprocess,
+        Intrusive, LexicalCast, Log, Metaparse, Move, Optional, Phoenix,
+        Python, Test, TypeIndex, Units, Unordered.
+    ]
+    [authors [Clow, Marshall]]
+    [/ last-revision is used for the final release date]
+    [last-revision Mon, 26 Dec 2016 15:37:40 -0800]
+]
+
+[import ext.qbk]
+
+[section Post-release Patches]
+
+* [phrase library..[@/libs/atomic/ Atomic]:]
+  * Using 64-bit atomic operations on 32-bit x86 with gcc versions older than 4.7 and compatible compilers can result in generation of incorrect code. This problem is fixed in [@https://github.com/boostorg/atomic/commit/a67cc1b055cf09f371e2eca544884634a1ccc886 this] commit.
+
+[endsect]
+
+[section Updated Libraries]
+
+* [phrase library..[@/libs/atomic/ Atomic]:]
+  * Added the static constant `atomic<T>::is_always_lock_free` for conformance with C++17. The constant indicates that the given specialization always provides lock-free implementation of atomic operations.
+  * Improved support of Oracle Studio on x86 targets. 
+  
+* [phrase library..[@/libs/container/ Container]:]
+  * Fixed bugs:
+     * [@https://svn.boost.org/trac/boost/ticket/12534 Trac #12534:  ['"flat_map fails to compile if included after type_traits is instantiated under gcc"]].
+     * [@https://svn.boost.org/trac/boost/ticket/12577 Trac #12577:  ['"Null reference in pair.hpp triggers runtime warning with -fsanitize=undefined"]].
+     * [@https://github.com/boostorg/container/pull/40 GitHub #40: ['Fix parameter types in copy_move_algo.hpp: iterator_traits::difference_type -> allocator_traits::size_type]].
+     * [@https://github.com/boostorg/container/pull/41 GitHub #41: ['Avoid -Wunreachable-code in do_allocate()]].
+  
+* [phrase library..[@/libs/context/ Context]:]
+  * [ticket 11687] Xcode (Apple clang) and thread_local
+  * [ticket 12114] context does not preserve fpu context on ios arm64 devices (fixed for other architecturs too)
+  * [ticket 12411] fpu registers not preserved with O2 optimizations in Visual Studio (fixed for other architecturs too)
+  * [ticket 12551] building boost on arm64 causes error: unknown directive
+  * reduced signatur for ontop-functions
+  * unit-test for private fcontext-API
+  * performance-test for ucontext and fcontext fixed
+  
+* [phrase library..[@/libs/fiber/ Fiber]:]
+  * unbounded_channel and bounded_channel marked as deprecated
+  * new classes buffered_channel and unbuffered_channel
+  * performance improved
+
+* [phrase library..[@/libs/fusion/ Fusion]:]
+  * Fixed `fusion::vector` buggy constructors (Thanks to Lee Clagett).
+  * `BOOST_FUSION_ADAPT*` and `BOOST_FUSION_DEFINE*` now allow empty structures. ([ticket 6592])
+  * `BOOST_FUSION_DEFINE*` allows move constructor and assignment. ([ticket 10099])
+  * Adaptor for `std::array` (Thanks to Mateusz Łoskot). ([ticket 8241])
+  * Fixed returning temporary variable warnings on MSVC.
+
+* [phrase library..[@/libs/geometry Geometry]:]
+  * ['Improvements:]
+    * Intersection: take care that output is valid (work in progres, not yet finished - but more is valid)
+  * ['Solved tickets:]
+    * [@https://svn.boost.org/trac/boost/ticket/12289 #12289] Avoid warning/compilation error for std::cout
+    * [@https://svn.boost.org/trac/boost/ticket/12412 #12412] Invalid result of covered_by() with geographic Points and Boxes
+    * [@https://svn.boost.org/trac/boost/ticket/12413 #12413] rtree::remove() not working properly with geographic Points
+
+* [phrase library..[@/libs/functional/hash Hash]:]
+  * Fixed some warnings.
+  
+* [phrase library..[@/libs/interprocess/ Interprocess]:]
+  * Fixed bugs:
+    * [@https://svn.boost.org/trac/boost/ticket/12499 Trac #12499 (['"Memory allocation fails"])].
+    * [@https://github.com/boostorg/interprocess/pull/30 GitHub Pull #30 (['"Provide extension point so library user can provide default temp folder"])].
+    * [@https://github.com/boostorg/interprocess/pull/31 GitHub Pull #31 (['"Add xsi_key(key_t) constructor"])].
+
+* [phrase library..[@/libs/intrusive/ Intrusive]:]
+  * Fixed bugs:
+    * [@https://svn.boost.org/trac/boost/ticket/12556 Boost Trac #12556: ['member_value_traits.hpp has a missing #include]]
+
+* [phrase library..[@/libs/lexical_cast/ Lexical Cast]:]
+  * Fixed issue found by `-fsanitize=undefined` [@https://github.com/boostorg/lexical_cast/issues/21 #21]
+
+* [phrase library..[@/libs/log/ Log]:]
+  * General changes:
+    * Removed the previously deprecated `type_info_wrapper`.
+  * New features:
+    * Added a way to access the current file name from the text file sink backend. The file name can be obtained with the `get_current_file_name` method.
+  * Bug fixes:
+    * Fixed compilation errors for Android API prior to version 21.
+    * Streaming operators now take scalar types and enums by value. This allows to output static constants and bitfields directly into formatting stream and record stream. ([ticket 11998])
+    * Fixed auto-detection of native syslog API. ([ticket 12600])
+    * In UDP socket based syslog backend implementation, changed the syslog message format for better compliance with RFC3164.
+    * File close handler installed in text file sink backend is no longer called if the file is not open yet.
+  * See [@/libs/log/doc/html/log/changelog.html changelog] for more details.
+
+* [phrase library..[@/libs/metaparse/ Metaparse]:]
+  * Improved the implementation of `BOOST_METAPARSE_STRING`
+    * The maximal string length limit has been increased to 2048
+    * The maximal string length limit can be extended beyond 2048 by regenerating some of the Boost headers using a script (part of the library)
+    * The string length limit can be changed within a compilation unit
+
+* [phrase library..[@/libs/move/ Move]:]
+  * Improved experimental adaptive sort algorithm performance
+  * Activate BOOST_MOVE_FORCEINLINE
+
+* [phrase library..[@/libs/optional/ Optional]:]
+  * Added two new in-place constructors. They work similarly to `emplace()` functions: they initialize the contained value by perfect-forwarding the obtained arguments. One constructor always initializes the contained value, the other based on a boolean condition.
+  * Syntax `o = {}` now correctly un-initializes an `optional`, just like in `std::optional`. 
+  * Fixed `optional<optional<T>&>` initialization. ([ticket 12203])
+  * Optional constructors are sfinae-friendly. This fixes interaction with `std::tuple`. ([ticket 12563])
+  
+* [phrase library..[@/libs/phoenix/ Phoenix]:]
+  * Most of modules now support C++11 variadic templates.
+  * Fixed type deduction failure with result type.
+  * Suppress unused warnings.
+  * Fixed too few arguments error on binary math functions.
+  * Added workarounds for older compiler.
+
+* [phrase library..[@/libs/python/ Python]:]
+  * Added (basic) support for C++11 (std::shared_ptr, std::unique_ptr)
+  * Incorporated an extension API to wrap [@http://www.numpy.org/ NumPy]
+  * Removed obsolete bits and pieces
+
+* [phrase library..[@/libs/test/ Test]:]
+  * Boost.test v3.4 see the
+    [@/doc/libs/1_63_0/libs/test/doc/html/boost_test/change_log.html Change log]
+    section for more details.
+  * New feature: `per_element` and `lexicographic` modifiers of `BOOST_TEST` can also be applied to string
+    comparison
+  * Breaking change: colons that appear in test case names are replaced with underscores
+  * Bug fixes
+    * Trac tickets [ticket 11756], [ticket 11907], [ticket 12339], [ticket 12506], [ticket 12507], [ticket 12530],
+    * Trac tickets [ticket 12531]
+    * Pull request [@https://github.com/boostorg/test/pull/103 PR103], [@https://github.com/boostorg/test/pull/104 PR104]
+
+* [phrase library..[@/libs/type_index/ TypeIndex]:]
+  * Added `runtime_cast` to the library as an emulation of `dynamic_cast`. Thanks to Chris Glover for the implementation. See [@/doc/html/boost_typeindex_header_reference.html#header.boost.type_index.runtime_cast_hpp runtime_cast reference] for more info.
+  * Internals of the CTTI were made more platform independant, due to change of the `std::size_t` type to `unsigned int`.
+
+* [phrase library..[@/libs/units/ Units]:]
+  * Fix inspection warnings
+  * updated physico-chemical constants to CODATA 2014 values
+  * define biot correctly as 10 Ampere
+
+* [phrase library..[@/libs/unordered/ Unordered]:]
+  * Fix an exception safety issue in assignment.
+  * Use `std::allocator_traits` where available, and support modern
+    style rebind ([ticket 12459]).
+  * Add some allocator aware constructors.
+  * Use the hint iterator in `emplace_hint`.
+  * Fixed some warnings.
+  * See the [@/doc/html/unordered/changes.html changelog] for more details.
+
+[endsect]
+
+[section Compilers Tested]
+
+Boost's primary test compilers are:
+
+* Linux:
+  * Clang: 3.0, 3.8.1
+  * Clang, C++11: 3.0, 3.1, 3.2, 3.3, 3.4, 3.8.1
+  * Clang, C++14: 3.5, 3.6, 3.7, 3.8.1
+  * Clang, C++1z: 3.8.1
+  * GCC: 4.4.7, 4.5.3, 4.6.3, 4.7.2, 5.2.0, 6.2.0
+  * GCC, C++11: 4.4.7, 4.7.2, 4.7.3, 4.8.5, 4.9.3, 5.2.0, 6.1.1, 6.2.0
+  * GCC, C++14: 5.2.0, 5.3.0, 6.1.1, 6.2.0
+  * Intel: 16.0, 17.0
+  * Intel, C++11: 16.0, 17.0
+  * Intel, C++14: 16.0, 17.0
+* OS X:
+  * Apple Clang: 7.0.2
+  * Apple Clang, C++11: 7.0.2
+* Windows:
+  * GCC, C++03, mingw: 3.4.5, 4.1.2, 4.2.4, 4.3.3, 4.4.0
+  * GCC, C++11, mingw: 4.6.4, 4.7.3, 4.8.1
+  * GCC, C++14, mingw: 4.9.3, 5.1.0, 5.2.0, 5.3.0, 6.1.0
+  * Visual C++: 7.1, 8.0, 9.0, 10.0, 11.0, 12.0, 14.0
+* Android:
+  * Clang: 3.6, 3.7, 3.8
+  * GCC: 4.9, 5.4, 6.2
+* QNX:
+  * QCC: 4.4.2
+* SunOS:
+  * Oracle Solaris Studio: 12.5
+  * Oracle Solaris Studio, C++11: 12.5
+
+Boost's additional test compilers include:
+
+* Linux:
+  * Clang: 3.0, 3.8.1
+  * Clang, C++11: 3.0, 3.1, 3.2, 3.3, 3.4, 3.8.1
+  * Clang, C++14: 3.5, 3.6, 3.7, 3.8.1
+  * Clang, C++1z: 3.8.1
+  * GCC: 4.4.7, 4.5.3, 4.6.3, 4.7.2, 5.2.0, 6.1.1, 6.2.0
+  * GCC, C++11: 4.4.7, 4.7.2, 4.7.3, 4.8.5, 4.9.3, 5.2.0, 6.1.1, 6.2.0
+  * GCC, C++14: 5.2.0, 5.3.0, 6.1.1, 6.2.0, 7.0.0 (experimental)
+  * GCC, C++1z: 6.1.1
+  * Intel: 16.0, 17.0
+  * Intel, C++11: 16.0, 17.0
+  * Intel, C++14: 16.0, 17.0
+* OS X:
+  * Apple Clang: 7.0.2
+  * Apple Clang, C++11: 7.0.2
+* Windows:
+  * GCC, C++03, mingw: 3.4.5, 4.1.2, 4.2.4, 4.3.3, 4.4.0
+  * GCC, C++11, mingw: 4.6.4, 4.7.3, 4.8.1
+  * GCC, C++14, mingw: 4.9.3, 5.1.0, 5.2.0, 5.3.0, 6.1.0
+  * Visual C++: 7.1, 8.0, 9.0, 10.0, 11.0, 12.0, 14.0
+* Android:
+  * Clang: 3.6, 3.7, 3.8
+  * GCC: 4.9, 5.4, 6.2
+  * GCC,C++14: 6.1.0
+* QNX:
+  * QCC: 4.4.2
+* SunOS:
+  * Oracle Solaris Studio: 12.5
+  * Oracle Solaris Studio, C++11: 12.5
+
+[endsect]
+
+[section Acknowledgements]
+
+[@/users/people/beman_dawes.html Beman Dawes],
+Eric Niebler,
+[@/users/people/rene_rivera.html Rene Rivera],
+Daniel James, Vladimir Prus and Marshall Clow
+managed this release.
+
+[endsect]

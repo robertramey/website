@@ -14,9 +14,6 @@
 
 [import ext.qbk]
 
-[/ Add attributes here as release progresses. See end of file for details. ]
-[documentation /doc/libs/master/]
-
 [section New Libraries]
 
 [/ Example:
@@ -38,19 +35,6 @@
 
 * /TODO/
 
-[/ TODO: These libraries always use the same message, referring to their
-   individual release notes. So check if they apply before the beta:
-
-* /TODO/: [phrase library..[@/libs/spirit/ Spirit]:]
-  * Spirit Vx.x, see the
-    '[@/doc/libs/1_xx_x/libs/spirit/doc/html/spirit/what_s_new/spirit_x_x.html What's New]'
-    section for details.
-
-* /TODO/: [phrase library..[@/libs/wave/ Wave]:]
-  * See the [@/libs/wave/ChangeLog Changelog] for details.
-
-]
-
 [endsect]
 
 [section Compilers Tested]
@@ -70,26 +54,3 @@ Boost's additional test compilers include:
 /TODO/
 
 [endsect]
-
-[/
-For Beta release, something like:
-
-[status beta]
-[download http://sourceforge.net/projects/boost/files/boost/1.56.0.beta.1/]
-[download_basename boost_1_56_0_b1]
-[documentation /doc/libs/1_56_0_b1/]
-
-Add libraries to 'purpose field'.
-
-For final release:
-
-[status released]
-[download http://sourceforge.net/projects/boost/files/boost/1.56.0/]
-[download_basename boost_1_56_0]
-[documentation /doc/libs/1_56_0/]
-
-Fill in 'authors' field, and date (I normally just copy the date from
-the email requesting that I update the site).
-
-Remove this comment.
-]

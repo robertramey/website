@@ -8,13 +8,9 @@ if (strpos($_SERVER['REQUEST_URI'], '//') !== FALSE)
 	exit(0);
 }
 
-require_once(dirname(__FILE__) . '/../common/code/boost.php');
+require_once(dirname(__FILE__) . '/../common/code/bootstrap.php');
 
-$archive = new BoostArchive(array(
-    'zipfile' => false,
-));
-
-$archive->display_from_archive(
+BoostDocumentation::extra_documentation_page()->display_from_archive(
   array(
   array('', '@[.](html|htm)$@i','basic','text/html')
   )

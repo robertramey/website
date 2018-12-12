@@ -1,7 +1,6 @@
 <?php
 
-# TODO: This is duplicated from other places, should only be set once?
-$news = $pages->match_pages(["feed/news/*.qbk", "feed/history/*.qbk|released"], 3);
+$news = array_slice($news, 0, 3);
 
 echo("<div class=\"directory-item\" id=\"important-downloads\">\n");
 echo("<h2>Downloads</h2>\n");
@@ -19,9 +18,9 @@ foreach ($downloads as $x) {
         echo("</div>");
         echo("<div class=\"news-date\">");
         echo("<a href=\"/".html_encode($entry->location)."\">Release Notes</a>");
-        if ($entry->download_item) {
+        if ($entry->download_page) {
             echo(" | ");
-            echo("<a href=\"".html_encode($entry->download_item)."\">Download</a>");
+            echo("<a href=\"".html_encode($entry->download_page)."\">Download</a>");
         }
         if ($entry->documentation) {
             echo(" | ");
@@ -35,7 +34,7 @@ foreach ($downloads as $x) {
                 echo("<div class=\"news-notice\">{$entry->notice_xml}</div>");
             }
         }
-        echo("<div class=\"news-date\">{$entry->web_date()}</div>");
+        echo("<div class=\"news-date\">{$entry->web_date}</div>");
         echo("</li>\n");
     }
     echo("</ul>\n");
@@ -58,11 +57,9 @@ foreach ($news as $entry) {
     echo("                    <span class=\n");
     echo("                    \"news-description\"><span class=\"brief\"><span class=\"purpose\">{$entry->purpose_xml}</span></span></span>\n");
     echo("                    <span class=\n");
-    echo("                    \"news-date\">{$entry->web_date()}</span></li>");
+    echo("                    \"news-date\">{$entry->web_date}</span></li>");
 }
 echo("</ul>\n\n");
 
 echo("<p><a href=\"/users/news/\">More News...</a> (<a href=\"feed/news.rss\">RSS</a>)</p>\n");
 echo("</div>\n\n");
-
-echo("<div class=\"clear\"></div>\n");

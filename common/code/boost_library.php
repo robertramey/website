@@ -3,10 +3,8 @@
   Copyright 2006 Redshift Software, Inc.
   Copyright 2014 Daniel James
   Distributed under the Boost Software License, Version 1.0.
-  (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
+  (See accompanying file LICENSE_1_0.txt or https://www.boost.org/LICENSE_1_0.txt)
 */
-
-require_once(dirname(__FILE__) . '/url.php');
 
 /**
  * The basic details about a single library.
@@ -22,8 +20,8 @@ class BoostLibrary
     static function read_libraries_json($json) {
         $json = trim($json);
         $libs = json_decode($json, true);
-        if (!$libs) {
-            throw new library_decode_exception("Error decoding json.", $json);
+        if (!is_array($libs)) {
+            throw new BoostLibraries_DecodeException("Error decoding json.", $json);
         }
         if ($json[0] == '{') {
             $libs = array($libs);
@@ -53,6 +51,7 @@ class BoostLibrary
         assert(!isset($lib['update-version']));
         assert(isset($lib['key']));
 
+        // Convert version number to object
         if (!empty($lib['boost-version'])) {
             $lib['boost-version']
                     = BoostVersion::from($lib['boost-version']);
@@ -63,6 +62,7 @@ class BoostLibrary
             $lib['authors'] = '';
         }
 
+        // Setup the standard flags.
         if (!isset($lib['std'])) {
             $lib['std'] = array();
         }
@@ -90,22 +90,39 @@ class BoostLibrary
             }
         }
         if (!empty($lib['category'])) {
-            $lib['category'] = array_map('ucwords', $lib['category']);
+            $lib['category'] = array_map('strtolower', $lib['category']);
             sort($lib['category']);
+        }
+
+        // Capitilize the names
+        if (!empty($lib['name'])) {
+            // Not using ucwords because it messes up uBLAS.
+            $lib['name'] = preg_replace_callback('@\b[a-z](?![A-Z])@',
+                function($matches) { return strtoupper($matches[0]); },
+                $lib['name']);
+        }
+
+        // Check the status.
+        if (isset($lib['status'])) {
+            $lib['status'] = strtolower($lib['status']);
+            if (!in_array($lib['status'], array('hidden', 'unreleased', 'deprecated', 'removed'))) {
+                throw new BoostLibraries_exception("Invalid status: {$lib['status']}");
+            }
         }
 
         $this->details = $lib;
     }
 
-    public function set_module($module_name, $module_path) {
-        assert(!isset($this->details['module']));
-        $module_path = trim($module_path, '/').'/';
+    // This is basically the parent of the 'meta' directory.
+    public function set_library_path($library_path) {
+        assert(!isset($this->details['library_path']));
+        $library_path = trim($library_path, '/').'/';
         $documentation_url =
             isset($this->details['documentation']) ?
             $this->details['documentation'] : '.';
-        $this->details['module'] = $module_name;
+        $this->details['library_path'] = $library_path;
         $this->details['documentation'] =
-            ltrim(resolve_url($documentation_url, $module_path), '/');
+            ltrim(BoostUrl::resolve($documentation_url, $library_path), '/');
     }
 
     public function array_for_json($exclude = array()) {
@@ -131,7 +148,9 @@ class BoostLibrary
     /** Kind of hacky way to fill in details that probably shouldn't be
      *  stored here anyway. */
     public function fill_in_details_from_previous_version($previous = null) {
-        if (empty($this->details['boost-version'])) {
+        if (empty($this->details['boost-version']) &&
+            BoostWebsite::array_get($this->details, 'status') != 'removed')
+        {
             $this->details['boost-version'] = isset($previous->details['boost-version']) ?
                 $previous->details['boost-version'] :
                 BoostVersion::unreleased();

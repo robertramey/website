@@ -14,23 +14,21 @@ RewriteRule ^libs/[0-9][^/]*/doc/(?:html|src)/(.*\.css)$ libs/common/doc/src/$1 
 RewriteRule ^libs/[0-9][^/]*/doc/(?:html|src)/images/([^/]*)$ libs/common/doc/src/images/$1 [L]
 RewriteRule ^libs/[0-9][^/]*/boost.png$ libs/common/boost.png [L]
 
-# Serve some other static files directly from archive
-# Requires an appropriate soft link.
-# RewriteCond %{DOCUMENT_ROOT}/doc/archives -l
-RewriteCond %{DOCUMENT_ROOT}/doc/archives/boost_$1 -f
-RewriteRule ^libs/([0-9_]+(?:beta[0-9]*|snapshot)?/.*\.(?:png|gif|jpg|jpeg|jpe|css|js|pdf|dtd))$ archives/boost_$1 [L,NC]
-
-RewriteCond %{DOCUMENT_ROOT}/doc/archives/boost-build/$1 -f
-RewriteRule ^tools/build/(.*\.(?:png|gif|jpg|jpeg|jpe|css|js|pdf|dtd))$ archives/boost-build/$1 [L,NC]
-
 # Redirect library directories before redirecting to the current version.
 # Trying to establish a standard location.
 RewriteRule ^libs/release/libs/([^./]+)$ libs/release/libs/$1/ [R=301]
 RewriteRule ^libs/development/libs/([^./]+)$ libs/development/libs/$1/ [R=301]
 
+# REDIRECT_UPDATE_START
+#
+# This section is automatically updated.
+# Any edits will be overwritten.
+#
 # Redirect from symbolic names to current versions.
-RewriteRule ^libs/release(/.*)?$ libs/1_60_0$1 [R=303]
-RewriteRule ^libs/development(/.*)?$ libs/1_60_0$1 [R=303]
+RewriteRule ^libs/release(/.*)?$ libs/1_69_0$1 [R=303]
+RewriteRule ^libs/development(/.*)?$ libs/1_69_0$1 [R=303]
+#
+# REDIRECT_UPDATE_END
 
 # Rewrite specific versions to the dynamic handlers.
 RewriteRule ^libs/(master|develop|latest|[0-9_]+(?:b(?:eta)?[0-9]*|snapshot)?)/?$ libraries.php/$1 [L]

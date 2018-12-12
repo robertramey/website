@@ -1,0 +1,305 @@
+[article Version 1.64.0
+    [quickbook 1.6]
+    [source-mode c++]
+    [purpose
+        New Library:
+        Process.
+        Updated Libraries:
+        Any, Atomic, Config, Container, Context, Conversion,
+        Core, Coroutine2, DLL, Fiber, Geometry, Hash, Interprocess,
+        Intrusive, LexicalCast, Math, Multi-index Containers, Multiprecision, Predef,
+        Regex, Smart Pointers, Test, TypeIndex,
+        TypeTraits, Unordered, Variant.
+    ]
+    [authors [Rivera, Rene]]
+    [/ last-revision is used for the final release date]
+    [last-revision ]
+]
+
+[import ext.qbk]
+
+[section New Libraries]
+
+* [phrase library..[@/libs/process/ Process]:]
+  Process library by Klemens D. Morgenstern, that provides cross platorm ways to allows you to:
+  [itemized_list
+    [create child processes]
+    [setup streams for child processes]
+    [communicate with child processes through streams (synchronously or asynchronously)]
+    [wait for processes to exit (synchronously or asynchronously)]
+    [terminate processes]
+  ]
+  Broken feature:
+  [itemized_list
+    [[@https://github.com/klemens-morgenstern/boost-process/issues/67 GitHub #67: ['"group.wait() does not return"]].]
+  ]
+
+[endsect]
+
+[section Updated Libraries]
+
+* [phrase library..[@/libs/any/ Any]:]
+    * Suppressed false warnings about returning reference to temporary
+    * `boost::addressof` is now used instead of directly taking the address [ticket 12615]
+    * Headers are not included using double quotes any more [ticket 12053]
+    * CI tests now run with `address`, `leak`, and `undefined` sanitizers
+    * Added more test
+
+* [phrase library..[@/libs/atomic/ Atomic]:]
+    * Fixed possible incorrect code generation in 64-bit atomic operations on 32-bit x86 with gcc versions older than 4.7 and compatible compilers.
+
+* [phrase library..[@/libs/config/ Config]:]
+  * Added `BOOST_NO_CXX11_SFINAE_EXPR` defect detection.
+
+* [phrase library..[@/libs/container/ Container]:]
+    * Fixed bugs:
+        * [@https://svn.boost.org/trac/boost/ticket/12749 Trac #12749: ['"container::pmr::polymorphic_allocator compilation error"]].
+        * [@https://svn.boost.org/trac/boost/ticket/11333 Trac #11333: ['"boost::basic_string_ref should interop with boost::container::basic_string"]].
+        * [@https://github.com/boostorg/container/pull/45 GitHub #45: ['"emplace_back must return reference to back(), not to *end()"]].
+
+* [phrase library..[@/libs/context/ Context]:]
+    * new API: call/cc
+    * deprecated API:execution-context
+    * stack manipulation on MIPS fixed
+    * [ticket 12719] segmentation fault when built with mingw-w64
+    * [ticket 12948] Unexpected snprintf result is on Android ARM
+    * #38: context_entry() crashes on macOS
+    * #39: Unknown directive .cpu on aarch64 with Clang 3.8 on Android
+    * #41: std::bind() fails with invoke()
+    * #46: "rename of continuation member functions" missed a spot
+    * #50: bad assembly for fcontext on ppc64/sysv/elf 
+
+* [phrase library..[@/libs/conversion/ Conversion]:]
+    * Docs were ported to Quickbook (thanks to Mikhail Maksimov for the port)
+    * Fixed a memory leak in test (thanks to Mikhail Maksimov for the fix)
+    * CI tests now run with `address`, `leak`, and `undefined` sanitizers
+
+* [phrase library..[@/libs/core/ Core]:]
+    * Implemented `constexpr` `addressof` on compilers that support C++11 `constexpr` and SFINAE expressions (Glen Fernandes). `BOOST_CORE_NO_CONSTEXPR_ADDRESSOF` macro indicates when `constexpr` `addressof` is not available.
+    * In `lightweight_test.hpp`, added new macros `BOOST_TEST_ALL_EQ` and `BOOST_TEST_ALL_WITH` for testing container contents (Bjorn Reese).
+
+* [phrase library..[@/libs/coroutine2/ Coroutine2]:]
+    * #4: coroutine2<> does not accept std::bind
+
+* [phrase library..[@/libs/dll/ DLL]:]
+    * Fixed WinCE compilation
+    * Added `boost:dll::symbol_location_ptr` function for getting location of a symbol by pointer that could not be dereferenced (`void` pointer for example)
+    * Fixed UB in `detail::aggressive_ptr_cast` for member pointers
+    * Fixed leaks in experimental smart imports
+    * Fixed warnings
+    * CI tests now run with `address` and `leak` sanitizers
+
+* [phrase library..[@/libs/fiber/ Fiber]:]
+    * (un)bounded_channel<> removed
+    * #100: ASIO: unbuffered_channel / scheduler notify issue
+    * #105: skynet variants crash on windows
+    * #106: Passing a fixed_stack allocator to async/packaged_task doesn't compile
+    * #110: Compile error on ARMv6
+    * #111: endless-loop in buffered_channel::try_value_pop()
+    * #114: buffered_channel::try_push` does not wake fibers in `pop`
+
+* [phrase library..[@/libs/geometry/ Geometry]:]
+    * Improvements:
+        * matrix transformation is now based on Boost.QVM instead of Boost.Ublas
+    * Breaking changes:
+        * ublas_transformer is renamed to matrix_transformer
+        * explicit modifier is added to constructors of rtree index::dynamic_* parameters
+        * strategy::area::huiller replaced by strategy::area::spherical
+    * Solved issues:
+        * [@https://github.com/boostorg/geometry/issues/363 363] Missing includes in geometry/index/parameters.hpp
+        * [@https://github.com/boostorg/geometry/issues/364 364] within(Linear, Areal) compilation error when arguments use different point types
+        * [@https://github.com/boostorg/geometry/issues/370 370] Buffer Seg Faults with Ring as Input
+    * Solved tickets:
+        * [@https://svn.boost.org/trac/boost/ticket/11899 11899] boost::geometry::equals doesn't handle open polygons
+        * [@https://svn.boost.org/trac/boost/ticket/11930 11930] Inaccuracy of area::huiller strategy
+        * [@https://svn.boost.org/trac/boost/ticket/11931 11931] Wrong spherical area with pole encircling polygons
+        * [@https://svn.boost.org/trac/boost/ticket/12410 12410] Lack of support of geographic coordinate system in correct()
+        * [@https://svn.boost.org/trac/boost/ticket/12566 12566] Ambiguous template instantiation in equal_to<> when pair value contains raw pointer
+        * [@https://svn.boost.org/trac/boost/ticket/12861 12861] Segmentation fault in stdlibc++ (gcc 4.8.2) affecting rtree
+        * [@https://svn.boost.org/trac/boost/ticket/12885 12885] Use BOOST_THROW_EXCEPTION instead of throw
+    * Bugfixes:
+        * Fix distance_measure in get_turn_info
+
+* [phrase library..[@/libs/functional/hash/ Hash]:]
+    * Stop using `std::unary_function` and `std::binary_function` when they're
+      not available.
+
+* [phrase library..[@/libs/interprocess/ Interprocess]:]
+    *  Fixed bugs:
+        * [@https://svn.boost.org/trac/boost/ticket/12617 Trac #12617 (['"clock_gettime not available on OS X 10.11"])].
+        * [@https://svn.boost.org/trac/boost/ticket/12744 Trac #12744 (['"winapi::set_timer_resolution inadvertently changes timer resolution (Windows)"])].
+        * [@https://github.com/boostorg/interprocess/pull/32 GitHub Pull #32 (['"Conform to std::pointer_traits requirements"])].
+        * [@https://github.com/boostorg/interprocess/pull/33 GitHub Pull #33 (['"explicit cast to derived class" and "64/32 bit processes sharing"])].
+        * [@https://github.com/boostorg/interprocess/pull/34 GitHub Pull #34 (['"Update example to use multi_index::member instead of BOOST_MULTI_INDEX_MEMBER"])].
+        * [@https://github.com/boostorg/interprocess/pull/35 GitHub Pull #35 (['"Fixed options for cross-compilation"])].
+
+    * New experimental option `BOOST_INTERPROCESS_BOOTSTAMP_IS_SESSION_MANAGER_BASED` from Windows systems.
+      This option derives the unique bootstamp used to name the folder where shared memory is placed from registry values associated
+      with the session manager. This option only works on Vista and later systems and might be more stable than the default version.
+
+* [phrase library..[@/libs/intrusive/ Intrusive]:]
+    *  Fixed bugs:
+        *  [@https://svn.boost.org/trac/boost/ticket/12745 Boost Trac #12745: ['key_nodeptr_comp broken if the key type is void*]]
+        *  [@https://svn.boost.org/trac/boost/ticket/12761 Boost Trac #12761: ['intrusive::set::swap doesn't swap the comparison function*]]
+
+* [phrase library..[@/libs/lexical_cast/ LexicalCast]:]
+    * Fixed multiple warnings [ticket 11842]
+    * CI tests now run with `address`, `leak`, and `undefined` sanitizers
+    
+* [phrase library..[@/libs/math/ Math]:]
+    * Big push to ensure all functions in also in C99 are compatible with Annex F.
+    * Improved accuracy of the Bessel functions I0, I1, K0 and K1, see [@https://svn.boost.org/trac/boost/ticket/12066 12066].
+
+* [phrase library..[@/libs/multi_index/index.html Multi-index Containers]:]
+  * Fixed a bug related to ambiguous references in the presence of more than
+    one ranked index (ticket [ticket 12955]). 
+  * Maintenance fixes.
+
+* [phrase library..[@/libs/multiprecision/ Multiprecision]:]
+    * In `cpp_bin_float` prevent double rounding when converting to a denormalized float.  See [@https://svn.boost.org/trac/boost/ticket/12527 #12527].
+    * Fix bug in integer sqrt for very small integers.  See [@https://svn.boost.org/trac/boost/ticket/12559 #12559].
+    * Fix conversion to signed-zero in `cpp_bin_float`.
+    * Change `cpp_bin_float` rounding code to round at arbitrary location so we can use it for conversions, see [@https://svn.boost.org/trac/boost/ticket/12527 #12527].
+    * Improve performance of 128-bit bit-scan operations. 
+    * Fix subtraction of very small quantities in `cpp_bin_float`.  See: [@https://svn.boost.org/trac/boost/ticket/12580 #12580].
+    * Bring error handling into line with C99 Annex F.  See [@https://svn.boost.org/trac/boost/ticket/12581 #12581].
+    * Fix bitwise export of trivial `cpp_int`'s, see [@https://svn.boost.org/trac/boost/ticket/12627 #12627].
+    * Fix `ilogb` (and code that uses it) to consistently return the smallest value of the exponent type when the argument is zero, see [@https://svn.boost.org/trac/boost/ticket/12625 #12625].
+    * Allow conversion from `__float128` to `cpp_bin_float`.
+    * Fix bug in left shift of `cpp_int` which would result in bit-loss, see [@https://svn.boost.org/trac/boost/ticket/12790 #12790].
+    * Fixed bugs in bounded but variable precision `cpp_int`'s caused by over-aggressive constexpr optimization, see [@https://svn.boost.org/trac/boost/ticket/12798 #12798].
+
+* [phrase library..[@/libs/predef/ Predef]:]
+  * Fix Intel C/C++ compiler version specification.
+  * Add `BOOST_VERSION_NUMBER_MAJOR`, `BOOST_VERSION_NUMBER_MINOR`,
+    `BOOST_VERSION_NUMBER_PATCH` macros to extract components from valid version
+    numbers.
+  * Change VS version numbering. Versions after VS2015 will use the compiler
+    version instead of the varied product versions.
+
+* [phrase library..[@/libs/regex/ Regex]:]
+  * Compiling with Oracle C++ toolset is no longer restricted to static linking.
+  * Big effort to de-fuzz the library using libFuzzer and fix identified issues, see:  [@https://svn.boost.org/trac/boost/ticket/12818 #12818].
+
+* [phrase library..[@/libs/smart_ptr/ Smart Pointers]:]
+  * Rewrite of `allocate_shared` and `make_shared` for arrays for a more
+    optimal and more maintainable implementation (Glen Fernandes)
+  * Pointer cast functions with move semantics (Chris Glover)
+
+* [phrase library..[@/libs/test/ Test]:]
+  * Boost.test v3.5 see the
+    [@/doc/libs/1_64_0/libs/test/doc/html/boost_test/change_log.html Change log]
+    section for more details.
+  * New feature:
+    * Now Boost.Test provides *customization points* for logging user defined types
+    * JUnit output format can now have a /log-level/
+    * JUnit output format has not better performances when the test modules have a lot of checks
+  * Bug fixes
+    * Trac tickets [ticket 11756], [ticket 12540], [ticket 12712], [ticket 12748], [ticket 12778]
+    * Pull request [@https://github.com/boostorg/test/pull/107 PR107], [@https://github.com/boostorg/test/pull/108 PR108]
+
+* [phrase library..[@/libs/type_index/ TypeIndex]:]
+    * Added `BOOST_TYPE_INDEX_IMPLEMENT_RUNTIME_CAST`, which implements the functionality for `runtime_cast` but does not include the `BOOST_TYPE_INDEX_REGISTER_CLASS` macro (thanks to Chris Glover for imlpementing it)
+    * Fixed undefined macro warning in stl_type_index.hpp [ticket 12739]
+    * CI tests now run with `address`, `leak`, and `undefined` sanitizers
+
+* [phrase library..[@/libs/type_traits/ TypeTraits]:]
+  * Added new traits `make_void` and `void_t`.
+
+* [phrase library..[@/libs/unordered/ Unordered]:]
+  * Initial support for new C++17 member functions:
+    `insert_or_assign` and `try_emplace` in `unordered_map`,
+    `merge` and `extract` in all containers.
+
+* [phrase library..[@/libs/variant/ Variant]:]
+    * Fixed construction of variant from `recursive_variant_` (thanks to Mikhail Maksimov for the fix) [ticket 12508], [ticket 12645]
+    * Do not enable variadic templates for MSVC2015Update1 as it still has issues [ticket 12236]
+    * Workaround GCC6 crash (thanks to Mikhail Maksimov for the workaround) [ticket 12680], [ticket 7120]
+    * Made `boost::polymorphic_*get` to work as `boost::*get` in undocumented border cases and fixed tests [ticket 11950]
+    * CI tests now run with `address`, `leak`, and `undefined` sanitizers
+
+[endsect]
+
+[section Compilers Tested]
+
+Boost's primary test compilers are:
+
+* Linux:
+  * Clang: 3.0, 3.8.1, 3.9.1
+  * Clang, C++11: 3.0, 3.1, 3.2, 3.3, 3.4, 3.8.1, 3.9.1
+  * Clang, C++14: 3.5, 3.6, 3.7.1, 3.8.1, 3.9.1
+  * Clang, C++1z: 3.9.1
+  * GCC: 4.4.7, 4.5.3, 4.6.3, 4.7.2, 6.2.0
+  * GCC, C++11: 4.4.7, 4.7.2, 4.7.3, 4.8.5, 4.9.4, 6.2.0
+  * GCC, C++14: 5.4.1, 6.2.0, 6.3.0
+  * GCC, C++1z: 6.2.0
+  * Intel: 16.0, 17.0
+  * Intel, C++11: 16.0, 17.0
+  * Intel, C++14: 16.0, 17.0
+* OS X:
+  * Apple Clang: 7.0.2
+  * Apple Clang, C++11: 7.0.2
+* Windows:
+  * GCC, C++03, mingw: 3.4.5, 4.1.2, 4.2.4, 4.3.3, 4.4.0
+  * GCC, C++11, mingw: 4.6.4, 4.7.3, 4.8.1
+  * GCC, C++14, mingw: 4.9.3, 5.1.0, 5.2.0, 5.3.0, 6.1.0
+  * Visual C++: 7.1, 8.0, 9.0, 10.0, 11.0, 12.0, 14.0
+* Android:
+  * Clang: 3.6, 3.7, 3.8
+  * GCC: 4.9, 5.4, 6.2
+* FreeBSD:
+  * Clang: 3.8
+  * Clang, C++11: 3.8
+  * Clang, C++14: 3.8
+  * Clang, C++1z: 3.8
+* QNX:
+  * QCC: 4.4.2
+* SunOS:
+  * Oracle Solaris Studio: 12.5
+  * Oracle Solaris Studio, C++11: 12.5
+
+
+Boost's additional test compilers include:
+
+* Linux:
+  * Clang: 3.0, 3.8.1, 3.9.1
+  * Clang, C++11: 3.0, 3.1, 3.2, 3.3, 3.8.1, 3.9.1
+  * Clang, C++14: 3.4, 3.5, 3.6, 3.7. 3.8, 3.8.1, 3.9.1
+  * Clang, C++1z: 3.9.1, 4.0
+  * GCC: 4.4.7, 4.5.3, 4.6.3, 4.7.2, 6.2.0
+  * GCC, C++11: 4.4.7, 4.7.2, 4.7.3, 4.8.5, 4.9.4, 6.2.0
+  * GCC, C++14: 5.4.1, 6.2.0, 6.3.0, 7.0.1
+  * GCC, C++1z: 6.2.0
+  * Intel: 16.0, 17.0
+  * Intel, C++11: 16.0, 17.0
+  * Intel, C++14: 16.0, 17.0
+* OS X:
+  * Apple Clang: 7.0.2
+* Windows:
+  * GCC, C++03, mingw: 3.4.5, 4.1.2, 4.2.4, 4.3.3, 4.4.0
+  * Visual C++: 7.1, 8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 14.1
+* Android:
+  * Clang: 3.6, 3.7, 3.8
+  * GCC: 4.9, 5.4, 6.2
+* FreeBSD:
+  * Clang, C++98: 3.8
+  * Clang, C++11: 3.8
+  * Clang, C++14: 3.8
+  * Clang, C++1z: 3.8
+* QNX:
+  * QCC: 4.4.2
+* SunOS:
+  * Oracle Solaris Studio: 12.5
+  * Oracle Solaris Studio, C++11: 12.5
+
+[endsect]
+
+[section Acknowledgements]
+
+[@/users/people/beman_dawes.html Beman Dawes],
+Eric Niebler,
+[@/users/people/rene_rivera.html Rene Rivera],
+Daniel James, Vladimir Prus and Marshall Clow
+managed this release.
+
+[endsect]

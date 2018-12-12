@@ -14,23 +14,27 @@ class BoostSuperProject {
 
     public function parse_config_file($path) {
         if ($this->git_branch) {
+            $blob = $this->run_git("ls-tree {$this->git_branch} \"{$path}\"");
+            if (!$blob || !$blob[0]) {
+                return array();
+            }
+            $blob = preg_split("@[\t ]@", $blob[0]);
+            $blob = $blob[2];
+
             if (self::git_version() >= array(1,8,4,0)) {
-                $blob = $this->run_git("ls-tree {$this->git_branch} \"{$path}\"");
-                $blob = preg_split("@[\t ]@", $blob[0]);
-                $blob = $blob[2];
                 return $this->run_git("config -l --blob {$blob}");
             }
             else {
                 $temp_file = tempnam(sys_get_temp_dir(), 'boost-git-');
                 file_put_contents($temp_file, implode("\n",
-                    $this->run_git("show \"{$this->git_branch}:{$path}\"")));
+                    $this->run_git("show {$blob}")));
                 $result = $this->run_git("config -l -f \"{$temp_file}\"");
                 unlink($temp_file);
                 return $result;
             }
         }
         else {
-            return $this->run_git("config -l -f \"{$path}\"");
+            return is_file($path) ? $this->run_git("config -l -f \"{$path}\"") : array();
         }
     }
 
@@ -41,20 +45,11 @@ class BoostSuperProject {
         {
             if (!$line) continue;
 
-            if (preg_match('@^submodule\.([\w/]+)\.(\w+)=(.*)$@', trim($line), $matches)) {
-                $modules[$matches[1]][$matches[2]] = $matches[3];
+            if (preg_match('@^submodule\.([^.=]+)\.([^.=]+)=(.*)$@i', trim($line), $matches)) {
+                $modules[$matches[1]][strtolower($matches[2])] = $matches[3];
             }
             else {
-                throw new RuntimeException("Unsupported config line: {$line}");
-            }
-        }
-
-        foreach ($modules as $name => $settings) {
-            if (empty($settings['url'])) {
-                throw new RuntimeException("Missing URL for {$name}.");
-            }
-            else if (!preg_match('@^\.\./(\w+)\.git$@', $settings['url'])) {
-                throw new RuntimeException("Invalid URL for {$name}.");
+                throw new BoostException("Unsupported config line: {$line}");
             }
         }
 
@@ -93,7 +88,7 @@ class BoostSuperProject {
     }
 }
 
-class ProcessError extends RuntimeException {
+class ProcessError extends BoostException {
     public $error_code;
 
     function __construct($error_code) {

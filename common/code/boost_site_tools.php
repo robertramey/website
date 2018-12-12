@@ -2,249 +2,394 @@
 # Copyright 2007 Rene Rivera
 # Copyright 2011,2015 Daniel James
 # Distributed under the Boost Software License, Version 1.0.
-# (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
-
-require_once(__DIR__.'/url.php');
+# (See accompanying file LICENSE_1_0.txt or https://www.boost.org/LICENSE_1_0.txt)
 
 class BoostSiteTools {
     var $root;
 
-    function __construct($path) {
+    function __construct($path = null) {
+        if (is_null($path)) { $path = BOOST_WEBSITE_DATA_ROOT_DIR; }
         $this->root = $path;
         BoostSiteTools_Upgrades::upgrade($this);
     }
 
     function load_pages() {
-        return new BoostPages($this->root, "generated/state/feed-pages.txt");
+        return new BoostPages($this->root);
     }
 
     function refresh_quickbook() {
         $this->update_quickbook(true);
     }
 
+    function update_in_progress_pages() {
+        $pages = $this->load_pages();
+        $pages->scan_for_new_quickbook_pages();
+        $pages->convert_quickbook_pages('in_progress');
+        $pages->save();
+    }
+
     function update_quickbook($refresh = false) {
         $pages = $this->load_pages();
+
         if (!$refresh) {
-            $this->scan_for_new_quickbook_pages($pages);
+            $pages->scan_for_new_quickbook_pages();
+            $pages->save();
         }
 
         // Translate new and changed pages
 
-        $pages->convert_quickbook_pages($refresh);
+        $pages->convert_quickbook_pages($refresh ? 'refresh' : 'update');
+
+        // Extract data for generating site from $pages:
+
+        $history_pages = array();
+        $released_versions = array();
+        $beta_versions = array();
+        $all_versions = array();
+        $all_downloads = array();
+        $news = array();
+
+        foreach($pages->reverse_chronological_pages() as $page) {
+            switch($page->section) {
+            case 'news':
+                if ($page->is_published()) {
+                    $news[] = $page;
+                }
+                break;
+            case 'history':
+                if ($page->is_published()) {
+                    $all_versions[] = $page;
+
+                    if (!$page->is_release) {
+                        $history_pages[] = $page;
+                        $news[] = $page;
+                    }
+                    else {
+                        if ($page->is_published('released')) {
+                            $all_downloads[] = $page;
+                            $history_pages[] = $page;
+                            $released_versions[] = $page;
+                            $news[] = $page;
+                        }
+                        else if ($page->is_published('beta')) {
+                            $beta_versions[] = $page;
+                        }
+                    }
+                }
+
+                break;
+            case 'downloads':
+                if ($page->is_published('released')) {
+                    $all_downloads[] = $page;
+                }
+                break;
+            default:
+                echo "Unknown website section: {$page->section}.\n";
+                break;
+            }
+        }
+
+        $released_versions_entries = array_map(function ($x) { return $x->index_info(); }, $released_versions);
+        $beta_versions_entries = array_map(function ($x) { return $x->index_info(); }, $beta_versions);
+        $history_pages_entries = array_map(function ($x) { return $x->index_info(); }, $history_pages);
+        $news_entries = array_map(function ($x) { return $x->index_info(); }, $news);
+
+        $downloads = array_filter(array(
+            $this->get_downloads('live', 'Current', $released_versions_entries, 1),
+            $this->get_downloads('beta', 'Beta', $beta_versions_entries),
+        ));
+
+        $index_page_variables = array(
+            'history_pages' => $history_pages_entries,
+            'news' => $news_entries,
+            'downloads' => $downloads,
+        );
 
         // Generate 'Index' pages
 
-        $downloads = array();
-        foreach (BoostPageSettings::$downloads as $x) {
-            $entries = $pages->match_pages($x['matches'], null, true);
-            if (isset($x['count'])) {
-                $entries = array_slice($entries, 0, $x['count']);
-            }
-            if ($entries) {
-                $y = array('anchor' => $x['anchor'], 'entries' => $entries);
-                if (count($entries) == 1) {
-                    $y['label'] = $x['single'];
-                } else {
-                    $y['label'] = $x['plural'];
-                }
-                $downloads[] = $y;
-            }
-        }
+        BoostPages::write_template(
+            "{$this->root}/generated/download-items.html",
+            __DIR__.'/templates/download.php',
+            $index_page_variables);
 
-        $index_page_variables = compact('pages', 'downloads');
+        BoostPages::write_template(
+            "{$this->root}/generated/history-items.html",
+            __DIR__.'/templates/history.php',
+            $index_page_variables);
 
-        foreach (BoostPageSettings::$index_pages as $index_page => $template) {
-            BoostPages::write_template(
-                $index_page,
-                __DIR__.'/'.$template,
-                $index_page_variables);
-        }
+        BoostPages::write_template(
+            "{$this->root}/generated/news-items.html",
+            __DIR__.'/templates/news.php',
+            $index_page_variables);
+
+        BoostPages::write_template(
+            "{$this->root}/generated/home-items.html",
+            __DIR__.'/templates/index.php',
+            $index_page_variables);
 
         # Generate RSS feeds
 
         if (!$refresh) {
-            $rss_items = BoostState::load(
-                "{$this->root}/generated/state/rss-items.txt");
+            $rss = new BoostRss($this->root, "generated/state/rss-items.txt");
 
-            foreach (BoostPageSettings::$feeds as $feed_file => $feed_data) {
-                $rss_feed = $this->rss_prefix($feed_file, $feed_data);
+            $rss->generate_rss_feed($pages, array(
+                'path' => 'generated/downloads.rss',
+                'link' => 'users/download/',
+                'title' => 'Boost Downloads',
+                'pages' => $all_downloads,
+                'count' => 3
+            ));
+            $rss->generate_rss_feed($pages, array(
+                'path' => 'generated/history.rss',
+                'link' => 'users/history/',
+                'title' => 'Boost History',
+                'pages' => $history_pages,
+            ));
+            $rss->generate_rss_feed($pages, array(
+                'path' => 'generated/news.rss',
+                'link' => 'users/news/',
+                'title' => 'Boost News',
+                'pages' => $news,
+                'count' => 5
+            ));
+            $rss->generate_rss_feed($pages, array(
+                'path' => 'generated/dev.rss',
+                'link' => '',
+                'title' => 'Release notes for work in progress boost',
+                'pages' => $all_versions,
+                'count' => 5
+            ));
+        }
 
-                $feed_pages = $pages->match_pages($feed_data['matches']);
-                if (isset($feed_data['count'])) {
-                    $feed_pages = array_slice($feed_pages, 0, $feed_data['count']);
+        # Create a list of release in reverse version order
+        #
+        # This is normally the default order, but it's possible that a point
+        # release might be released after a later major release.
+
+        $releases_by_version = $released_versions;
+        usort($releases_by_version, function($x, $y) {
+            $x_has_version = array_key_exists('version', $x->release_data);
+            $y_has_version = array_key_exists('version', $y->release_data);
+            if (!$x_has_version) { return $y_has_version ? 1 : 0; }
+            if (!$y_has_version) { return -1; }
+            return $y->release_data['version']->compare(
+                $x->release_data['version']);
+        });
+        $latest_version = $releases_by_version[0]->release_data['version'];
+
+        # Write out the current version for reference
+
+        file_put_contents(__DIR__.'/../../generated/current_version.txt',
+            $latest_version);
+
+        # Update doc/.htaccess
+
+        $final_doc_dir = $latest_version->final_doc_dir();
+        $redirect_block = "# REDIRECT_UPDATE_START\n";
+        $redirect_block .= "#\n";
+        $redirect_block .= "# This section is automatically updated.\n";
+        $redirect_block .= "# Any edits will be overwritten.\n";
+        $redirect_block .= "#\n";
+        $redirect_block .= "# Redirect from symbolic names to current versions.\n";
+        $redirect_block .= "RewriteRule ^libs/release(/.*)?\\\$ libs/{$final_doc_dir}\\\$1 [R=303]\n";
+        $redirect_block .= "RewriteRule ^libs/development(/.*)?\\\$ libs/{$final_doc_dir}\\\$1 [R=303]\n";
+        $redirect_block .= "#\n";
+        $redirect_block .= "# REDIRECT_UPDATE_END\n";
+
+        $htaccss_file = __DIR__.'/../../doc/.htaccess';
+        $htaccess = file_get_contents($htaccss_file);
+        $count = 0;
+        $htaccess = preg_replace(
+            '@^# REDIRECT_UPDATE_START$.*^# REDIRECT_UPDATE_END$\n@ms',
+            $redirect_block, $htaccess, -1, $count);
+        if ($count != 1) {
+            throw new BoostException("Error updating doc/.htaccess");
+        }
+        file_put_contents($htaccss_file, $htaccess);
+
+        # Generate documentation list
+
+        $documentation_list = <<<EOL
+  <h4><a href="/doc/" class="internal">Documentation <span class=
+  "link">&gt;</span></a></h4>
+
+  <ul>
+    <li><a href="/doc/libs/release/more/getting_started/">Getting Started
+    <span class="link">&gt;</span></a></li>
+
+    <li>
+      <a href="/doc/libs">Libraries <span class="link">&gt;</span></a>
+
+      <ul>
+EOL;
+        $first = true;
+        foreach($releases_by_version as $page) {
+            $documentation = $page->get_documentation();
+            $version = BoostWebsite::array_get($page->release_data, 'version');
+            if ($documentation && $version && $version->is_numbered_release()) {
+                $documentation_list .= "\n";
+                $documentation_list .= "        <li><a href=\"{$documentation}\" rel=\"nofollow\">{$version}";
+                if ($first) {
+                    $documentation_list .= " - Current\n";
+                    $documentation_list .= "        Release <span class=\"link\">&gt;</span></a></li>\n";
+                    $first = false;
+                } else {
+                    $documentation_list .= " <span class=\n";
+                    $documentation_list .= "        \"link\">&gt;</span></a></li>\n";
                 }
-
-                foreach ($feed_pages as $qbk_page) {
-                    $item_xml = null;
-
-                    if ($qbk_page->loaded) {
-                        $item = $this->generate_rss_item($qbk_page->qbk_file, $qbk_page);
-
-                        $item['item'] = self::fragment_to_string($item['item']);
-                        $rss_items[$qbk_page->qbk_file] = $item;
-                        BoostState::save($rss_items, "{$this->root}/generated/state/rss-items.txt");
-
-                        $rss_feed .= $item['item'];
-                    } else if (isset($rss_items[$qbk_page->qbk_file])) {
-                        $rss_feed .= $rss_items[$qbk_page->qbk_file]['item'];
-                    } else {
-                        echo "Missing entry for {$qbk_page->qbk_file}\n";
-                    }
-                }
-
-                $rss_feed .= $this->rss_postfix($feed_file, $feed_data);
-
-                $output_file = fopen("{$this->root}/{$feed_file}", 'wb');
-                fwrite($output_file, $rss_feed);
-                fclose($output_file);
             }
         }
 
-        $pages->save();
-    }
+        $documentation_list .= <<<EOL
+      </ul>
+    </li>
 
-    function scan_for_new_quickbook_pages($pages) {
-        foreach (BoostPageSettings::$pages as $location => $pages_data) {
-            foreach ($pages_data['src_files'] as $src_file_pattern) {
-                foreach (glob($src_file_pattern) as $qbk_file) {
-                    $pages->add_qbk_file($qbk_file, $location, $pages_data);
-                }
-            }
-        }
+    <li>
+      <a href="/doc/tools.html">Tools <span class="link">&gt;</span></a>
 
-        $pages->save();
-    }
+      <ul>
+        <li><a href="/build/">Boost Build <span class=
+        "link">&gt;</span></a></li>
 
-################################################################################
+        <li><a href="/tools/regression/">Regression <span class=
+        "link">&gt;</span></a></li>
 
-    function rss_prefix($feed_file, $details) {
-        $title = $this->encode_for_rss($details['title']);
-        $link = $this->encode_for_rss("http://www.boost.org/".$details['link']);
-        $description = '';
-        $language = 'en-us';
-        $copyright = 'Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)';
-        return <<<EOL
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:boostbook="urn:boost.org:boostbook">
-  <channel>
-    <generator>Boost Website Site Tools</generator>
-    <title>{$title}</title>
-    <link>{$link}</link>
-    <description>{$description}</description>
-    <language>{$language}</language>
-    <copyright>{$copyright}</copyright>
+        <li><a href="/tools/inspect/">Inspect <span class=
+        "link">&gt;</span></a></li>
+
+        <li><a href="/doc/html/boostbook.html">BoostBook <span class=
+        "link">&gt;</span></a></li>
+
+        <li><a href="/tools/quickbook/">QuickBook <span class=
+        "link">&gt;</span></a></li>
+
+        <li><a href="/tools/bcp/">bcp <span class=
+        "link">&gt;</span></a></li>
+
+        <li><a href="/libs/wave/doc/wave_driver.html">Wave <span class=
+        "link">&gt;</span></a></li>
+
+        <li><a href="/tools/auto_index/">AutoIndex <span class=
+        "link">&gt;</span></a></li>
+      </ul>
+    </li>
+  </ul>
 
 EOL;
+        file_put_contents(__DIR__.'/../../generated/menu-doc.html', $documentation_list);
+
+        $pages->save();
     }
 
-    function rss_postfix($feed_file, $details) {
-        return "\n  </channel>\n</rss>\n";
-    }
-
-    function generate_rss_item($qbk_file, $page) {
-        assert($page->loaded);
-
-        $rss_xml = new DOMDocument();
-        $rss_xml->loadXML(<<<EOL
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:boostbook="urn:boost.org:boostbook">
-</rss>
-EOL
-        );
-
-        $page_link = "http://www.boost.org/{$page->location}";
-
-        $item = $rss_xml->createElement('item');
-
-        $node = new DOMDocument();
-        $node->loadXML('<title>'.$this->encode_for_rss($page->title_xml).'</title>');
-        $item->appendChild($rss_xml->importNode($node->documentElement, true));
-
-        $node = new DOMDocument();
-        $node->loadXML('<link>'.$this->encode_for_rss($page_link).'</link>');
-        $item->appendChild($rss_xml->importNode($node->documentElement, true));
-
-        $node = new DOMDocument();
-        $node->loadXML('<guid>'.$this->encode_for_rss($page_link).'</guid>');
-        $item->appendChild($rss_xml->importNode($node->documentElement, true));
-
-        # TODO: Convert date format?
-        $node = $rss_xml->createElement('pubDate');
-        $node->appendChild($rss_xml->createTextNode($page->pub_date));
-        $item->appendChild($node);
-
-        $node = $rss_xml->createElement('description');
-        # Placing the description in a root element to make it well formed xml->
-        $description = new DOMDocument();
-        $description->loadXML('<x>'.$this->encode_for_rss($page->description_xml).'</x>');
-
-        BoostSiteTools::base_links($description, $page_link);
-        foreach($description->firstChild->childNodes as $child) {
-            $node->appendChild($rss_xml->createTextNode(
-                $description->saveXML($child)));
+    function get_downloads($anchor, $label, $entries, $count = null) {
+        if ($count) {
+            $entries = array_slice($entries, 0, $count);
         }
-        $item->appendChild($node);
 
-        return(array(
-            'item' => $item,
-            'quickbook' => $qbk_file,
-            'last_modified' => $page->last_modified,
-        ));
+        if ($entries) {
+            $y = array('anchor' => $anchor, 'entries' => $entries);
+            if (count($entries) == 1) {
+                $y['label'] = "{$label} Release";
+            } else {
+                $y['label'] = "{$label} Releases";
+            }
+            return $y;
+        }
+        else {
+            return null;
+        }
     }
 
-    function encode_for_rss($x) {
-        return $x;
-    }
+    // Some XML processing functions - TODO: find somewhere better to put these.
 
-    static function fragment_to_string($x) {
+    static function trim_lines($x) {
         if ($x) {
-            return preg_replace('@ +$@m', '', $x->ownerDocument->saveXML($x));
+            return preg_replace('@(?<! ) +$@m', '', $x);
         } else {
             return null;
         }
     }
 
-    static function base_links($node, $base_link) {
-        self::transform_links($node, function($x) use ($base_link) {
-            return resolve_url($x, $base_link);
+    static function base_links($xhtml, $base_link) {
+        return self::transform_links($xhtml, function($x) use ($base_link) {
+            return BoostUrl::resolve($x, $base_link);
         });
     }
 
-    static function transform_links($node, $func) {
-        self::transform_links_impl($node, 'a', 'href', $func);
-        self::transform_links_impl($node, 'img', 'src', $func);
+    static function transform_links_regex($xhtml, $pattern, $replace) {
+        return self::transform_links($xhtml, function($x) use ($pattern, $replace) {
+            return preg_replace($pattern, $replace, $x);
+        });
     }
 
-    static function transform_links_impl($node, $tag_name, $attribute, $func) {
-        if ($node->nodeType == XML_ELEMENT_NODE ||
-            $node->nodeType == XML_DOCUMENT_NODE)
-        {
-            foreach ($node->getElementsByTagName($tag_name) as $x) {
-                $x->setAttribute($attribute,
-                    call_user_func($func, $x->getAttribute($attribute)));
+    static function transform_links($xhtml, $func) {
+        $result = '';
+        $pos = 0;
+
+        $tag_stuff = '(?:[^<>"\']|\'[^\']*\'|"[^"]*")*';
+        $value_match = '\'[^\']*\'|"[^"]*"|[^\s<>"\']*';
+
+        preg_match_all(
+            "@
+            <
+            (?:
+                # Try to match the link values of 'img' and 'a' tags.
+                (?|
+                    img \b {$tag_stuff} \b src  \s* = \s* ({$value_match})
+                |   a   \b {$tag_stuff} \b href \s* = \s* ({$value_match})
+                )
+                {$tag_stuff}
+                >?
+            |
+                # Ignore CDATA
+                !\[CDATA\[(?:.*?\]\]>|.*)
+            |
+                # Ignore comments
+                !--.*(?:-->)?
+            |
+                # Ignore other <! tags.
+                ![^>]*>?
+            |
+                # Ignore misc tags.
+                [/\w]{$tag_stuff}>?
+            )
+            @xsmi",
+            $xhtml, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+
+        foreach ($matches as $match) {
+            if (!empty($match[1][0])) {
+                $string = $match[1][0];
+                if ($string[0] == '"' || $string[0] == "'") {
+                    $string = substr($string, 1, -1);
+                }
+                $string = html_entity_decode($string);
+                $string = call_user_func($func, $string);
+                $string = htmlspecialchars($string, ENT_COMPAT);
+                $result .= substr($xhtml, $pos, $match[1][1] - $pos);
+                $result .= "\"{$string}\"";
+                $pos = $match[1][1] + strlen($match[1][0]);
             }
         }
-        else if ($node->nodeType == XML_DOCUMENT_FRAG_NODE) {
-            foreach ($node->childNodes as $x) {
-                self::transform_links_impl($x, $tag_name, $attribute, $func);
-            }
-        }
+        $result .= substr($xhtml, $pos);
+        return $result;
     }
 }
 
 class BoostSiteTools_Upgrades {
-    static $versions = [
+    static $versions = array(
         1 => 'BoostSiteTools_Upgrades::old_upgrade',
         2 => 'BoostSiteTools_Upgrades::old_upgrade',
         3 => 'BoostSiteTools_Upgrades::old_upgrade',
         4 => 'BoostSiteTools_Upgrades::old_upgrade',
-    ];
+        5 => 'BoostSiteTools_Upgrades::update_unversioned_hash',
+        6 => 'BoostSiteTools_Upgrades::clear_page_cache',
+    );
 
     static function upgrade($site_tools) {
         $filename = $site_tools->root.'/generated/state/version.txt';
         $file_contents = trim(file_get_contents($filename));
         if (!preg_match('@^[0-9]+$@', $file_contents)) {
-            throw new RuntimeException("Error reading state version");
+            throw new BoostException("Error reading state version");
         }
         $current_version = intval($file_contents);
         foreach (self::$versions as $version => $upgrade_function) {
@@ -257,6 +402,25 @@ class BoostSiteTools_Upgrades {
     }
 
     static function old_upgrade() {
-        throw new RuntimeException("Old unsupported data version.");
+        throw new BoostException("Old unsupported data version.");
+    }
+
+    // unversioned.qbk used to have release data, but now it doesn't, so
+    // rehash it to avoid rebuilding it.
+    static function update_unversioned_hash($site_tools) {
+        $pages = $site_tools->load_pages();
+        $unversioned = BoostWebsite::array_get($pages->pages,
+            'feed/history/unversioned.qbk');
+        if ($unversioned) {
+            $unversioned->qbk_hash =
+                $pages->calculate_qbk_hash($unversioned, 'downloads');
+            $pages->save();
+        }
+    }
+
+    static function clear_page_cache($site_tools) {
+        $pages = $site_tools->load_pages();
+        $pages->page_cache = array();
+        $pages->save();
     }
 }

@@ -1,7 +1,7 @@
 /*
   Copyright 2005 Redshift Software, Inc.
   Distributed under the Boost Software License, Version 1.0.
-  (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
+  (See accompanying file LICENSE_1_0.txt or https://www.boost.org/LICENSE_1_0.txt)
 */
 /* */
 #content {
@@ -25,6 +25,12 @@
   padding: 1.5em;
 }
 #content .section-title {
+}
+#content .section-alert {
+    border: 1px solid #aa5;
+    background: #ffc;
+    color: #000;
+    padding: 0.5em 1em 0 1em;
 }
 /* Uniformly color everything that's a heading */
 #content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {

@@ -2,12 +2,11 @@
 /*
   Copyright 2006 Redshift Software, Inc.
   Distributed under the Boost Software License, Version 1.0.
-  (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
+  (See accompanying file LICENSE_1_0.txt or https://www.boost.org/LICENSE_1_0.txt)
 */
 
 // Change this when developing.
 define('USE_SERIALIZED_INFO', true);
-require_once(dirname(__FILE__) . '/url.php');
 
 /**
  * Stores the details of all the boost libraries organised by version.
@@ -18,8 +17,9 @@ require_once(dirname(__FILE__) . '/url.php');
  */
 class BoostLibraries
 {
-    private $categories = array();
-    private $db = array();
+    public $categories = array();
+    public $db = array();
+    public $latest_version = null;
 
     /**
      *
@@ -55,7 +55,7 @@ class BoostLibraries
         xml_parser_set_option($parser, XML_OPTION_CASE_FOLDING, 0);
         xml_parser_set_option($parser, XML_OPTION_SKIP_WHITE, 1);
         if (!xml_parse_into_struct($parser, $xml, $values)) {
-            die("Error parsing XML");
+            throw new BoostLibraries_DecodeException("Error parsing XML", $xml);
         }
         xml_parser_free($parser);
 
@@ -65,12 +65,17 @@ class BoostLibraries
         $category = NULL;
         $libs = array();
         $lib = NULL;
+        $latest_version = null;
 
         foreach ( $values as $key => $val )
         {
             if ($val['tag'] == 'boost' || $val['tag'] == 'categories')
             {
                 // Ignore boost tags.
+            }
+            else if ($val['tag'] == 'latest' && $val['type'] == 'complete' && !$lib && !$category)
+            {
+                $latest_version = BoostVersion::from($val['attributes']['version']);
             }
             else if ($val['tag'] == 'category' && $val['type'] == 'open' && !$lib && !$category)
             {
@@ -98,7 +103,7 @@ class BoostLibraries
                     case 'description':
                     case 'documentation':
                     case 'status':
-                    case 'module':
+                    case 'library_path':
                     {
                         if (isset($val['value'])) { $lib[$val['tag']] = trim($val['value']); }
                         else { $lib[$val['tag']] = ''; }
@@ -116,9 +121,9 @@ class BoostLibraries
                     {
                         $value = isset($val['value']) ? trim($val['value']) : false;
                         if($value && $value != 'true' && $value != 'false') {
-                            echo 'Invalid value for ',html_encode($val['tag']),
-                                ': ', $value, "\n";
-                            exit(0);
+                            throw new BoostLibraries_DecodeException(
+                                "Invalid value for {$val['tag']}: {$value}",
+                                $xml);
                         }
                         $lib[$val['tag']] = ($value == 'true');
                     }
@@ -135,8 +140,8 @@ class BoostLibraries
                     }
                     break;
                     default:
-                        echo 'Invalid tag: ', html_encode($val['tag']), "\n";
-                        exit(0);
+                    throw new BoostLibraries_DecodeException(
+                        "Invalid tag: {$val['tag']}", $xml);
                 }
             }
             else if ($val['tag'] == 'library' && $val['type'] == 'close' && $lib)
@@ -146,12 +151,12 @@ class BoostLibraries
             }
             else
             {
-                echo 'Invalid tag: ', html_encode($val['tag']), "\n";
-                exit(0);
+                throw new BoostLibraries_DecodeException(
+                    "Invalid tag: {$val['tag']}", $xml);
             }
         }
 
-        return new self($libs, $categories);
+        return new self($libs, $categories, null, $latest_version);
     }
 
     static function from_json($json)
@@ -162,7 +167,7 @@ class BoostLibraries
 
         $import = json_decode($json, true);
         if (!$import) {
-            throw new library_decode_exception("Error decoding json.", $json);
+            throw new BoostLibraries_DecodeException("Error decoding json.", $json);
         }
 
         if ($json[0] == '{') {
@@ -210,10 +215,11 @@ class BoostLibraries
      *                       is missing.
      */
     private function __construct(array $flat_libs, array $categories,
-            $version = null)
+            $version = null, $latest_version = null)
     {
         $this->db = array();
-        $this->categories = $categories;
+        $this->categories = array_change_key_case($categories);
+        $this->latest_version = $latest_version;
 
         foreach ($flat_libs as $details) {
             $update_version =
@@ -224,9 +230,8 @@ class BoostLibraries
             $update_version = $update_version ?
                 BoostVersion::from($update_version) :
                 BoostVersion::unreleased();
-            if (!$update_version->is_release()) {
-                throw new BoostLibraries_exception(
-                        "No version info for {$details['key']}");
+            if (!$update_version->is_update_version()) {
+                throw new BoostLibraries_Exception("No version info for {$details['key']}");
             }
             if (isset($details['update-version'])) {
                 unset($details['update-version']);
@@ -279,11 +284,10 @@ class BoostLibraries
      * Update the libraries from an array of BoostLibrary.
      *
      * @param array $update
-     * @throws BoostLibraries_exception
      */
     public function update($update_version = null, $update = null) {
         $this->update_start($update_version);
-        if ($update) { $this->update_modules($update_version, $update); }
+        if ($update) { $this->update_libraries($update_version, $update); }
         $this->update_finish($update_version);
     }
 
@@ -299,14 +303,14 @@ class BoostLibraries
         }
     }
 
-    public function update_modules($update_version, $update) {
+    public function update_libraries($update_version, $update) {
         if ($update_version) {
             $update_version = BoostVersion::from($update_version);
         }
 
         foreach($update as $lib) {
             $category = array_key_exists('category', $lib->details)
-                ? $lib->details['category'] : array();
+                ? array_map('strtolower', $lib->details['category']) : array();
             $invalid_categories = array_diff($category,
                 array_keys($this->categories));
             $valid_categories = array_intersect($category,
@@ -317,7 +321,7 @@ class BoostLibraries
             }
 
             if (!$valid_categories) {
-                $valid_categories = array('Miscellaneous');
+                $valid_categories = array('miscellaneous');
             }
 
             // Sort categories to normalize them.
@@ -334,7 +338,7 @@ class BoostLibraries
         }
     }
 
-    public function update_finish($version) {
+    public function update_finish($version = null) {
         if ($version) {
             $version = BoostVersion::from($version);
         }
@@ -351,16 +355,25 @@ class BoostLibraries
                 'BoostLibraries::filter_all');
             $new_libs = array();
             foreach($libs as $lib_details) {
-                $current_version = BoostVersion::from($lib_details['boost-version']);
-                if ($current_version->is_unreleased() || $current_version->is_beta())
+                if (BoostWebsite::array_get($lib_details, 'status') === 'unreleased') {
+                    continue;
+                }
+
+                $lib_version = BoostVersion::from($lib_details['boost-version']);
+                if ($version->release_stage() > $lib_version->release_stage())
                 {
                     $lib_details['boost-version'] = $version;
                 }
 
                 $new_libs[] = new BoostLibrary($lib_details);
             }
-            $this->update_modules($version, $new_libs);
+            $this->update_libraries($version, $new_libs);
             $this->clean_db();
+
+            // Also update latest version if appropriate.
+            if (!$this->latest_version || $version->compare($this->latest_version) > 0) {
+                $this->latest_version = $version;
+            }
         }
     }
 
@@ -410,11 +423,16 @@ class BoostLibraries
         $writer->writeAttribute('xmlns:xsi',
                 'http://www.w3.org/2001/XMLSchema-instance');
 
+        if ($this->latest_version) {
+            $writer->startElement('latest');
+            $writer->writeAttribute('version', (string) $this->latest_version);
+            $writer->endElement();
+        }
         if ($this->categories) {
             $writer->startElement('categories');
             foreach ($this->categories as $name => $category) {
                 $writer->startElement('category');
-                $writer->writeAttribute('name', $name);
+                $writer->writeAttribute('name', $category['name']);
                 $writer->writeElement('title', $category['title']);
                 $writer->endElement();
             }
@@ -431,7 +449,7 @@ class BoostLibraries
 
                 $writer->startElement('library');
                 $this->write_element($writer, $exclude, $details, 'key');
-                $this->write_element($writer, $exclude, $details, 'module');
+                $this->write_optional_element($writer, $exclude, $details, 'library_path');
                 $this->write_optional_element($writer, $exclude, $details, 'boost-version');
                 $this->write_optional_element($writer, $exclude, $details, 'update-version');
                 $this->write_optional_element($writer, $exclude, $details, 'status');
@@ -441,7 +459,7 @@ class BoostLibraries
                 $this->write_optional_element($writer, $exclude, $details, 'description');
                 $this->write_optional_element($writer, $exclude, $details, 'documentation');
                 $this->write_many_elements($writer, $exclude, $details, 'std');
-                $this->write_many_elements($writer, $exclude, $details, 'category');
+                $this->write_category_elements($writer, $exclude, $details, 'category');
                 $writer->endElement();
             }
         }
@@ -466,10 +484,36 @@ class BoostLibraries
                     $writer->writeElement($name, $value);
                 }
             }
-            else {
+            else if ($lib[$name]) {
                 $writer->writeElement($name, $lib[$name]);
             }
         }
+    }
+
+    /**
+     * Write an array of categories.
+     *
+     * @param XMLWriter $writer
+     * @param array $exclude
+     * @param string $lib
+     * @param string $name
+     */
+    private function write_category_elements($writer, $exclude, $lib, $name) {
+        if (isset($lib[$name]) && !isset($exclude[$name])) {
+            if (is_array($lib[$name])) {
+                foreach($lib[$name] as $value) {
+                    $this->write_category_element($writer, $name, $value);
+                }
+            }
+            else {
+                $this->write_category_element($writer, $name, $lib[$name]);
+            }
+        }
+    }
+
+    private function write_category_element($writer, $name, $value) {
+        $writer->writeElement($name,
+            $this->categories[strtolower($value)]['name']);
     }
 
     /**
@@ -539,8 +583,14 @@ class BoostLibraries
             ));
     }
 
-    static function filter_released($x) {
-        return $x['boost-version']->is_release();
+    static function filter_visible($x) {
+        if ($x['boost-version']->is_hidden()) { return false; }
+        if (in_array(BoostWebsite::array_get($x, 'status'),
+                array('hidden', 'unreleased', 'removed')))
+        {
+            return false;
+        }
+        return true;
     }
 
     static function filter_all($x) {
@@ -561,7 +611,7 @@ class BoostLibraries
 
         if (!$filter) {
             $filter = $version->is_numbered_release() ?
-                'BoostLibraries::filter_released' :
+                'BoostLibraries::filter_visible' :
                 'BoostLibraries::filter_all';
         }
 
@@ -574,7 +624,7 @@ class BoostLibraries
                 }
             }
 
-            if ($details) {
+            if ($details && BoostWebsite::array_get($details, 'status') != 'removed') {
                 if ($filter && !call_user_func($filter, $details)) continue;
                 $libs[$key] = $details;
             }
@@ -600,11 +650,14 @@ class BoostLibraries
         $libs = $this->get_for_version($version, $sort, $filter);
         $categories = $this->categories;
 
+        foreach(array_keys($categories) as $category) {
+            $categories[$category]['libraries'] = array();
+        }
+
         foreach($libs as $key => $library) {
             foreach($library['category'] as $category) {
                 if(!isset($this->categories[$category])) {
-                    echo 'Unknown category: ', html_encode($category), "\n";
-                    exit(0);
+                    throw new BoostLibraries_Exception('Unknown category: '.$category);
                 }
                 $categories[$category]['libraries'][] = $library;
             }
@@ -729,8 +782,8 @@ class BoostLibraries_XMLWriter {
     }
 }
 
-class BoostLibraries_exception extends RuntimeException {}
-class library_decode_exception extends BoostLibraries_exception {
+class BoostLibraries_Exception extends BoostException {}
+class BoostLibraries_DecodeException extends BoostLibraries_Exception {
     private $content = '';
 
     function __construct($message, $content) {
